@@ -6,7 +6,7 @@ Run with the pointcept conda Python:
     /home/fondecyt/anaconda3/envs/pointcept/bin/python3 ptv3_inference.py
 
 Binary protocol over stdin/stdout (big-endian):
-  RX: 4B uint32 N  +  N*12B float32[N,3] xyz
+  RX: 4B uint32 N  +  N*24B float32[N,6] xyzrgb  (rgb normalized to [0,1])
   TX: 4B uint32 N  +  N*4B  int32[N]    class labels
 Repeats until stdin EOF.  All log messages go to stderr.
 """
@@ -89,9 +89,14 @@ def _load_model(weights_path: str, device: torch.device):
 GRID_SIZE = 0.01  # voxel size for PTv3 serialization (matches training config)
 
 
-def _infer(model, pts: np.ndarray, device: torch.device) -> np.ndarray:
+def _infer(model, pts: np.ndarray, rgb: np.ndarray, device: torch.device) -> np.ndarray:
+    """
+    pts: (N, 3) float32 world coordinates
+    rgb: (N, 3) float32 normalized [0, 1]
+    feat: (N, 6) = [xyz_norm, rgb] — uses all 6 in_channels of PTv3
+    """
     coord_norm = _normalize_xyz(pts)
-    feat = np.concatenate([coord_norm, np.zeros_like(coord_norm)], axis=1)
+    feat = np.concatenate([coord_norm, rgb], axis=1)  # (N, 6)
 
     data_dict = {
         "coord":     torch.from_numpy(pts.astype(np.float32)).to(device),
@@ -137,13 +142,15 @@ def main():
         N = struct.unpack('!I', header)[0]
 
         try:
-            raw = _recv_exact(stdin, N * 12)
+            raw = _recv_exact(stdin, N * 24)
         except EOFError:
             break
-        pts = np.frombuffer(raw, dtype=np.float32).reshape(N, 3)
+        data   = np.frombuffer(raw, dtype=np.float32).reshape(N, 6)
+        pts    = data[:, :3]
+        rgb    = data[:, 3:]
 
         try:
-            labels = _infer(model, pts, device)
+            labels = _infer(model, pts, rgb, device)
         except Exception as exc:
             import traceback
             _log(f"INFERENCE ERROR (N={N}): {exc}")

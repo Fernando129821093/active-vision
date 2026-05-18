@@ -4,10 +4,10 @@ PTv3 segmentation bridge node (Python 3.12 + rclpy).
 
 Spawns ptv3_inference.py under the pointcept conda Python (3.8 + torch + CUDA 11.8)
 as a persistent subprocess.  Communicates via binary stdin/stdout:
-  send: 4B uint32 N  +  N*12B float32[N,3] xyz
+  send: 4B uint32 N  +  N*24B float32[N,6] xyzrgb  (rgb normalized to [0,1])
   recv: 4B uint32 N  +  N*4B  int32[N]    labels
 
-Subscribe:  /nbv/plant_pointcloud   (sensor_msgs/PointCloud2, xyz, world frame)
+Subscribe:  /nbv/plant_pointcloud   (sensor_msgs/PointCloud2, xyzrgb packed, world frame)
 Publish:    /nbv/semantic_pointcloud (sensor_msgs/PointCloud2, xyz + semantic_color uint32)
 """
 import os
@@ -35,19 +35,35 @@ CLASS_COLORS_RGB = np.array([
 ], dtype=np.uint8)
 
 
-def _parse_xyz(msg: PointCloud2) -> np.ndarray:
-    """Extract (N, 3) float32 xyz from a PointCloud2 message."""
+def _parse_xyzrgb(msg: PointCloud2):
+    """
+    Extract (N, 3) float32 xyz and (N, 3) float32 rgb∈[0,1] from a PointCloud2.
+
+    Expects fields: x, y, z (float32) and rgb (float32 = packed uint32 0x00RRGGBB).
+    Falls back to zeros for rgb if the field is absent (backward compatible).
+    """
     n = msg.width * msg.height
     raw = np.frombuffer(bytes(msg.data), dtype=np.uint8)
-    offsets = {f.name: f.offset for f in msg.fields if f.name in ('x', 'y', 'z')}
+    field_map = {f.name: f.offset for f in msg.fields}
     step = msg.point_step
-    idx = np.arange(n) * step
+    idx  = np.arange(n) * step
+
     xyz = np.empty((n, 3), dtype=np.float32)
     for i, name in enumerate(('x', 'y', 'z')):
-        off = offsets[name]
+        off  = field_map[name]
         cols = np.stack([raw[idx + off + b] for b in range(4)], axis=1)
         xyz[:, i] = np.frombuffer(cols.tobytes(), dtype=np.float32)
-    return xyz
+
+    rgb = np.zeros((n, 3), dtype=np.float32)
+    if 'rgb' in field_map:
+        off  = field_map['rgb']
+        cols = np.stack([raw[idx + off + b] for b in range(4)], axis=1)
+        packed = np.frombuffer(cols.tobytes(), dtype=np.uint32)
+        rgb[:, 0] = ((packed >> 16) & 0xFF).astype(np.float32) / 255.0  # R
+        rgb[:, 1] = ((packed >>  8) & 0xFF).astype(np.float32) / 255.0  # G
+        rgb[:, 2] = ( packed        & 0xFF).astype(np.float32) / 255.0  # B
+
+    return xyz, rgb
 
 
 def _build_semantic_cloud(orig: PointCloud2,
@@ -160,20 +176,21 @@ class PTv3BridgeNode(Node):
         self.get_logger().info(
             f"[PTv3] cloud received: {msg.width}x{msg.height} step={msg.point_step}")
         try:
-            pts = _parse_xyz(msg)
+            pts, rgb = _parse_xyzrgb(msg)
         except Exception as e:
             self.get_logger().warn(f"Parse error: {e}")
             return
 
         valid = np.isfinite(pts).all(axis=1)
         pts_v = pts[valid]
+        rgb_v = rgb[valid]
         self.get_logger().info(f"[PTv3] valid pts: {len(pts_v)}/{len(pts)}")
         if len(pts_v) < 10:
             self.get_logger().warn(f"[PTv3] too few valid points ({len(pts_v)}), skipping")
             return
 
         try:
-            labels_v = self._call_worker(pts_v)
+            labels_v = self._call_worker(pts_v, rgb_v)
         except Exception as e:
             self.get_logger().warn(f"Worker error: {e}")
             return
@@ -191,9 +208,10 @@ class PTv3BridgeNode(Node):
         except Exception as e:
             self.get_logger().error(f"[PTv3] publish error: {e}")
 
-    def _call_worker(self, pts: np.ndarray) -> np.ndarray:
+    def _call_worker(self, pts: np.ndarray, rgb: np.ndarray) -> np.ndarray:
         N = len(pts)
-        payload = struct.pack('!I', N) + pts.astype(np.float32).tobytes()
+        xyzrgb = np.concatenate([pts.astype(np.float32), rgb.astype(np.float32)], axis=1)  # (N,6)
+        payload = struct.pack('!I', N) + xyzrgb.tobytes()
         with self._lock:
             # Check if worker is alive; restart if not
             if self._worker.poll() is not None:
