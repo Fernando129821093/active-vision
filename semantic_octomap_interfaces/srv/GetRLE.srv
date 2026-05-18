@@ -1,0 +1,4 @@
+geometry_msgs/Point[] end_points
+geometry_msgs/Point origin
+---
+semantic_octomap_interfaces/RayRLE[] rle_list

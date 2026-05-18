@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ptv3_segmentation_ros2</name>
+  <version>1.0.0</version>
+  <description>PointTransformerV3 semantic segmentation ROS2 node (geometry-only, LiDAR input)</description>
+  <maintainer email="fayalasarria@gmail.com">NBV-PPO</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
