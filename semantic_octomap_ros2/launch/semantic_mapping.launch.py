@@ -31,6 +31,11 @@ def generate_launch_description():
         DeclareLaunchArgument('phi',            default_value='-0.1'),
         DeclareLaunchArgument('rviz',           default_value='true'),
         DeclareLaunchArgument('rviz_config',    default_value=default_rviz),
+        # Set to 'true' when segmentation comes from an external source (e.g. real sensor).
+        # Set to 'false' (default) when Isaac Lab publishes /nbv/semantic_pointcloud directly
+        # via its internal semantic_seg_proxy — running both causes duplicate messages on
+        # the same topic and makes the octree flicker black.
+        DeclareLaunchArgument('use_ptv3_node',  default_value='false'),
 
         # PTv3 segmentation node (Python 3.12 bridge → Python 3.8 worker subprocess)
         Node(
@@ -38,6 +43,7 @@ def generate_launch_description():
             executable='ptv3_node',
             name='ptv3_segmentation_node',
             output='screen',
+            condition=IfCondition(LaunchConfiguration('use_ptv3_node')),
             remappings=[
                 ('/nbv/plant_pointcloud',
                  LaunchConfiguration('pointcloud_topic')),
