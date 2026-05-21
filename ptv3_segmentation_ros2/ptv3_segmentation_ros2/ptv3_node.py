@@ -26,10 +26,10 @@ _DEFAULT_CONDA_PYTHON = "/home/fondecyt/anaconda3/envs/pointcept/bin/python3"
 
 # PTv3 6-class colour map: Soil, Stem, Leaf, Tassel, Corn, Pot
 CLASS_COLORS_RGB = np.array([
-    [128,  64,   0],
+    [255, 215,   0],
     [  0, 128,   0],
     [  0, 255,   0],
-    [255, 215,   0],
+    [128,  64,   0],
     [255, 165,   0],
     [128,   0, 128],
 ], dtype=np.uint8)
