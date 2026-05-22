@@ -109,7 +109,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /nbv/semantic_pointcloud
+        Value: /nbv/semantic_pointcloud_0
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -123,7 +123,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_octomap/semantic_markers
+        Value: /semantic_octomap_0/semantic_markers
       Value: true
     - Class: rviz_default_plugins/Map
       Alpha: 0.7
@@ -137,7 +137,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /semantic_octomap/occupancy_map_2D
+        Value: /semantic_octomap_0/occupancy_map_2D
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: true
