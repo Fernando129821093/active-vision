@@ -44,6 +44,11 @@ OctomapGeneratorNode::OctomapGeneratorNode(const rclcpp::NodeOptions& options)
         std::bind(&OctomapGeneratorNode::toggleUseSemanticColor, this,
                   std::placeholders::_1, std::placeholders::_2));
 
+    reset_service_ = this->create_service<std_srvs::srv::Empty>(
+        "reset_octomap",
+        std::bind(&OctomapGeneratorNode::resetOctomap, this,
+                  std::placeholders::_1, std::placeholders::_2));
+
     rle_service_ = this->create_service<semantic_octomap_interfaces::srv::GetRLE>(
         "query_rle",
         std::bind(&OctomapGeneratorNode::queryRLE, this,
@@ -211,6 +216,16 @@ void OctomapGeneratorNode::toggleUseSemanticColor(
     octomap_generator_->setUseSemanticColor(!current);
     RCLCPP_INFO(this->get_logger(), "use_semantic_color toggled to %s",
                 !current ? "true" : "false");
+}
+
+void OctomapGeneratorNode::resetOctomap(
+    const std::shared_ptr<std_srvs::srv::Empty::Request>,
+    std::shared_ptr<std_srvs::srv::Empty::Response>)
+{
+    std::lock_guard<std::mutex> lock(octree_mutex_);
+    octomap_generator_->clearOctomap();
+    clouds_received_ = 0;
+    RCLCPP_INFO(this->get_logger(), "[reset_octomap] Octree cleared for new DR episode.");
 }
 
 void OctomapGeneratorNode::queryRLE(

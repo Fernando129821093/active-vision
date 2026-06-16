@@ -41,9 +41,14 @@ private:
         const std::shared_ptr<semantic_octomap_interfaces::srv::GetRLE::Request> req,
         std::shared_ptr<semantic_octomap_interfaces::srv::GetRLE::Response> res);
 
+    void resetOctomap(
+        const std::shared_ptr<std_srvs::srv::Empty::Request> req,
+        std::shared_ptr<std_srvs::srv::Empty::Response> res);
+
     OctomapGeneratorBase<SemanticOctree>* octomap_generator_;
 
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr toggle_color_service_;
+    rclcpp::Service<std_srvs::srv::Empty>::SharedPtr reset_service_;
     rclcpp::Service<semantic_octomap_interfaces::srv::GetRLE>::SharedPtr rle_service_;
     rclcpp::Publisher<octomap_msgs::msg::Octomap>::SharedPtr fullmap_pub_;
     rclcpp::Publisher<octomap_msgs::msg::Octomap>::SharedPtr colormap_pub_;

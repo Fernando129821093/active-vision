@@ -68,6 +68,9 @@ public:
     /// Get octree
     virtual OCTREE* getOctree() = 0;
 
+    /// Clear all nodes from the octree (used for DR episode reset)
+    virtual void clearOctomap() = 0;
+
     /// Save octomap to a file. NOTE: Not tested
     virtual bool save(const char* filename) const = 0;
 };

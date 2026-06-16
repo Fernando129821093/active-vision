@@ -91,6 +91,8 @@ public:
 
     virtual OCTREE* getOctree(){return &octomap_;}
 
+    virtual void clearOctomap() { octomap_.clear(); }
+
     /**
      * \brief Save octomap to a file. NOTE: Not tested
      * \param filename The output filename
