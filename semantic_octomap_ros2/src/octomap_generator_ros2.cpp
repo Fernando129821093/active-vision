@@ -225,7 +225,7 @@ void OctomapGeneratorNode::resetOctomap(
     std::lock_guard<std::mutex> lock(octree_mutex_);
     octomap_generator_->clearOctomap();
     clouds_received_ = 0;
-    RCLCPP_INFO(this->get_logger(), "[reset_octomap] Octree cleared for new DR episode.");
+    RCLCPP_DEBUG(this->get_logger(), "[reset_octomap] Octree cleared.");
 }
 
 void OctomapGeneratorNode::queryRLE(
