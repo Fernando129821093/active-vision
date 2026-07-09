@@ -57,9 +57,14 @@ private:
 
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
     rclcpp::TimerBase::SharedPtr diag_timer_;
-    // Dedicated callback group so GetRLE service calls run in parallel with
-    // the cloud insert subscription (otherwise they queue up to ~170 ms each).
+    // Dedicated callback groups so GetRLE service calls run in parallel with
+    // the cloud insert subscription. With a single-threaded executor these had
+    // no effect and the continuous query_rle load STARVED the cloud callback
+    // (octree never ingested → frozen semantic observation). Requires a
+    // MultiThreadedExecutor in main() to actually parallelize; octree_mutex_
+    // keeps concurrent octree access safe.
     rclcpp::CallbackGroup::SharedPtr service_cb_group_;
+    rclcpp::CallbackGroup::SharedPtr sub_cb_group_;
     // Octree is NOT thread-safe — serialize reads/writes between the cloud
     // insert callback (writer) and GetRLE service handler (reader).
     std::mutex octree_mutex_;

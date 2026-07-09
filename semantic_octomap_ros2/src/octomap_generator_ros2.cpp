@@ -37,30 +37,45 @@ OctomapGeneratorNode::OctomapGeneratorNode(const rclcpp::NodeOptions& options)
     marker_pub_   = this->create_publisher<visualization_msgs::msg::MarkerArray>(
         "semantic_markers", qos_latched);
 
-    // Services — back to default callback group (single-threaded) to rule
-    // out the ReentrantCallbackGroup as the cause of the wire-format shift bug.
+    // Callback groups: services (Reentrant, so query_rle calls run concurrently
+    // and never block each other) vs the cloud-insert subscription (its own
+    // MutuallyExclusive group). This ONLY has effect under a MultiThreadedExecutor
+    // (see main.cpp). The wire-format shift bug that motivated the old
+    // single-threaded/default-group setup was actually fixed by switching
+    // FastDDS → CycloneDDS, so parallel groups are safe again.
+    service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    sub_cb_group_     = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
     toggle_color_service_ = this->create_service<std_srvs::srv::Empty>(
         "toggle_use_semantic_color",
         std::bind(&OctomapGeneratorNode::toggleUseSemanticColor, this,
-                  std::placeholders::_1, std::placeholders::_2));
+                  std::placeholders::_1, std::placeholders::_2),
+        rclcpp::ServicesQoS(), service_cb_group_);
 
     reset_service_ = this->create_service<std_srvs::srv::Empty>(
         "reset_octomap",
         std::bind(&OctomapGeneratorNode::resetOctomap, this,
-                  std::placeholders::_1, std::placeholders::_2));
+                  std::placeholders::_1, std::placeholders::_2),
+        rclcpp::ServicesQoS(), service_cb_group_);
 
     rle_service_ = this->create_service<semantic_octomap_interfaces::srv::GetRLE>(
         "query_rle",
         std::bind(&OctomapGeneratorNode::queryRLE, this,
-                  std::placeholders::_1, std::placeholders::_2));
+                  std::placeholders::_1, std::placeholders::_2),
+        rclcpp::ServicesQoS(), service_cb_group_);
 
     // TF2 buffer (no listener thread — avoids executor deadlock when TF is empty)
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
 
     // Direct subscription with depth=10 (system default QoS: RELIABLE, VOLATILE, KEEP_LAST)
+    // Placed in its own callback group so it is scheduled independently of the
+    // service load (previously starved under the single-threaded executor).
+    rclcpp::SubscriptionOptions sub_opts;
+    sub_opts.callback_group = sub_cb_group_;
     pointcloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
         pointcloud_topic_, 10,
-        std::bind(&OctomapGeneratorNode::insertCloudCallback, this, std::placeholders::_1));
+        std::bind(&OctomapGeneratorNode::insertCloudCallback, this, std::placeholders::_1),
+        sub_opts);
 
     // NOTE: diag_timer removed — count_publishers/count_subscribers from a wall_timer
     // appears to deadlock the executor with FastDDS in this configuration

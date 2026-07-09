@@ -10,9 +10,14 @@ int main(int argc, char** argv)
     rclcpp::init(argc, argv);
     auto node = std::make_shared<OctomapGeneratorNode>(rclcpp::NodeOptions());
 
-    // SingleThreadedExecutor — service serializes behind insertCloudCallback
-    // but at least the wire-format shift bug should not occur.
-    rclcpp::spin(node);
+    // MultiThreadedExecutor: the cloud-insert subscription and the query_rle
+    // service live in separate callback groups (see constructor). Under the old
+    // SingleThreadedExecutor the continuous query_rle load starved the cloud
+    // callback, so the octree never ingested clouds (frozen semantic obs).
+    // Octree access is serialized by octree_mutex_, so 3 threads are safe.
+    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 3);
+    executor.add_node(node);
+    executor.spin();
 
     rclcpp::shutdown();
     return 0;
